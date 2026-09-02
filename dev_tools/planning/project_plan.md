@@ -6,16 +6,15 @@
 ### Goal & context
 
 - The goose-grabber app runs on a **control computer in the scanner suite** and records video of the **participant's arm** (in the MRI scanner, fixed in place) for later **goosebump detection**.
-- The camera is inside the scanner room; the app computer is outside. The video signal currently reaches the computer via a **Terratec Grabster AV350MX** USB analog grabber (composite/S-Video → ~640×480, 25 fps).
+- The camera is inside the scanner room; the app computer is outside. The camera is an **MRC Systems "12M" MR-compatible camera** (Heidelberg), digitized via a **Terratec Grabster AV350MX** USB grabber. Manual specs (confirmed): **color CMOS sensor 1/4" (active area 4.1×3.1 mm)**; output is an **analog composite video signal — PAL at 50 Hz field frequency (≈ 25 fps, interlaced) or NTSC at 60 Hz**. So the camera's native output is analog, VGA-class video; the AV350 is the correct digitizer (not a downgrade of any digital HD signal), and the 12M's premium is MR compatibility, not resolution.
 - Frame **timestamps must align with trial events** (e.g., when a scary image was shown) logged on the stimulus computer. Both computers are connected over a network cable and **time-synced via a local NTP server** (the local NTP server runs on a Windows box in the lab).
 - End users (researchers / MRI operators) are **not technical**, and the app must run on **both Windows and Linux**.
 
 ### ⚠️ Open questions for the PI (before building)
 
-1. **Camera & grabber quality.** The actual camera may be an expensive MR-compatible camera (possibly a "MRC Heidelberg" MRI camera). If so, we need its exact model and output interface, because:
-   - The AV350MX is a cheap **analog composite** grabber. Going analog → 640×480 interlaced PAL almost certainly **degrades the camera's native output** (resolution, interlacing, added noise) and may be the wrong capture path entirely.
-   - If the camera has a native **digital output** (SDI / HDMI / DVI / USB3 / FireWire), capturing that directly would preserve far more quality for subtle goosebump detection.
-   - → *Ask PI: exact camera model, its output connector/format, and whether the AV350 path is actually required or just what was on hand.*
+1. **Camera & grabber quality — resolved.** Confirmed from the 12M manual: **color CMOS sensor, 1/4" (active area 4.1×3.1 mm)**; output is an **analog composite PAL video signal (50 Hz field frequency, ≈25 fps interlaced) or NTSC (60 Hz)**. So the AV350 digitizer is appropriate — it does *not* degrade a digital HD signal (there is none); VGA-class analog is the camera's native output.
+   - → *Remaining PI question: is it the plain **12M** or the **12M-i** (with integrated LED)? The LED version provides stable in-bore illumination, which matters for subtle goosebump detection.*
+   - *Strategic note: if HD skin imaging were ever wanted, that means MRC's **HighResolution** camera (GigE Vision) → a network-camera capture path, entirely different from the USB grabber → out of scope for this app.*
 2. **Expected session length** (we assume long, 30–60+ min continuous runs) and frame rate.
 3. **Who runs the app** and on which OS day-to-day (Windows and Linux are both first-class; we will test both).
 4. **Analysis workflow**: confirm that extracting high-quality frames from a recorded video file is acceptable (vs. needing individual image files per frame).
@@ -48,6 +47,8 @@
 
 Rationale: the source (analog composite) is the quality ceiling, so true lossless wastes disk encoding source noise. Goosebumps are luminance/texture, which near-lossless H.264 preserves well; any frame can be extracted from the MKV later at full stored quality. **Validate early** with a real recording that goosebumps survive the chosen codec before finalizing.
 
+Interlacing note: the 12M outputs PAL at 50 Hz *field* rate (≈25 fps interlaced frames). Because the participant's arm is fixed in the scanner, motion/combing artifacts are negligible, so **no deinterlacing is planned** (can be added as an option if ever needed).
+
 ### Multi-camera ready (1..N)
 
 > The app must support **any number of cameras (1..N)** without a redesign — the current plan assumes one camera; the outside-scanner version of this study used 5. A single-camera deployment is just the N=1 case. This is a modest generalization *now* (loop over a list, tile the preview) versus a rewrite of capture, UI, and file naming later.
@@ -75,7 +76,8 @@ Rationale: the source (analog composite) is the quality ceiling, so true lossles
 - Realistic outcome: **3 grabbers on one modern desktop = doable**; **5 = a stretch but feasible** with controller spreading and/or MJPEG mode.
 - **Disk/CPU are not the bottleneck**: H.264 CRF≈15 at VGA is ~2–5 GB/hr *per camera* → 5 cams ≈ 10–25 GB/hr of sequential writes (trivial for an SSD). One veryfast H.264 encode at VGA is cheap; 5 concurrent encodes are fine.
 - **Sync favors one PC over one-PC-per-camera**: all cameras share the same clock, so no cross-machine NTP between cameras is ever needed.
-- *To determine:* what UVC formats the AV350 exposes (YUYV vs MJPEG), and how the previous 5-cam rig was actually wired (ask the lab tech / inspect the old data files).
+- The previous 5-cam rig is confirmed: a **dedicated recording workstation with many USB controllers, one camera per controller** — consistent with the bandwidth rules above.
+- *Still to determine:* what UVC formats the AV350 exposes (YUYV vs MJPEG).
 
 ### Proposed code layout
 
@@ -102,7 +104,7 @@ goose-grabber/
 
 ### Proposed milestones (for review)
 
-1. **Quality/format validation** on real hardware (does the AV350 + chosen codec preserve goosebumps? — do this *before* committing the format) — depends on the PI's camera answer.
+1. **Quality/format validation** on real hardware (does the AV350 + chosen codec preserve goosebumps on the MRC 12M's VGA analog feed? — do this *before* committing the format).
 2. Core capture → record → CSV pipeline with `--simulate` mode.
 3. PySide6 GUI (camera picker, session index, preview, status, record start/stop, event marker).
 4. Session/event handling + `session.json`.
