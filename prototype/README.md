@@ -55,6 +55,7 @@ so for tomorrow's test install ffmpeg if possible.
 ```
 
 - Output PNGs land in a `frames_<video-stem>/` folder **next to the video** (or `-o`).
+- Each exported PNG also carries its frame's timestamps as **PNG text metadata** (keys `goosegrabber.frame_idx/epoch_ns/mono_ns/iso_utc`) — a portable annotation only; the CSV stays the canonical source of truth.
 
 - Frame N == row N of `frames.csv` (recorded order).
 - Output is lossless PNG (a good choice for goosebump analysis).

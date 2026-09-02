@@ -89,6 +89,8 @@ Rationale: the source (analog composite) is the quality ceiling, so true lossles
 
 Interlacing note: the 12M outputs PAL at 50 Hz *field* rate (≈25 fps interlaced frames). Because the participant's arm is fixed in the scanner, motion/combing artifacts are negligible, so **no deinterlacing is planned** (can be added as an option if ever needed).
 
+Self-describing frames (metadata fallback): frame-export tools embed a copy of each frame's timestamps into the **PNG metadata** (namespaced text chunks `goosegrabber.frame_idx / epoch_ns / mono_ns / iso_utc`). Pixels are never modified (safe for pixel-based goosebump detection); the **CSV remains the canonical source of truth** — the metadata is a portable fallback/annotation so a single shared frame still carries its own capture time.
+
 ### Multi-camera ready (1..N)
 
 > The app must support **any number of cameras (1..N)** without a redesign — the current plan assumes one camera; the outside-scanner version of this study used 5. A single-camera deployment is just the N=1 case. This is a modest generalization *now* (loop over a list, tile the preview) versus a rewrite of capture, UI, and file naming later.

@@ -13,6 +13,11 @@ Usage:
                       to the video with the same stem).
 
 Files are written as frame_00000.png ... frame_000NN.png (lossless PNG).
+
+When a timestamp CSV is found next to the video, the frame's timestamps are
+also embedded in each PNG as namespaced text metadata (keys
+``goosegrabber.frame_idx/epoch_ns/mono_ns/iso_utc``). This is portable
+annotation only -- the CSV remains the canonical source of truth.
 """
 from __future__ import annotations
 
@@ -23,19 +28,48 @@ import sys
 
 import cv2
 
+try:
+    from PIL import Image
+    from PIL.PngImagePlugin import PngInfo
+    _HAS_PIL = True
+except Exception:  # pragma: no cover
+    _HAS_PIL = False
 
-def _read_csv_times(path: str):
-    times = {}
+
+_CSV_FIELDS = ("mono_ns", "epoch_ns", "iso_utc")
+
+
+def _read_csv_rows(path: str):
+    """frame_idx -> dict of timestamp fields ({} if unreadable)."""
+    rows = {}
     try:
         with open(path, newline="") as fh:
             for row in csv.DictReader(fh):
                 try:
-                    times[int(row["frame_idx"])] = row.get("iso_utc", "")
+                    idx = int(row["frame_idx"])
                 except (KeyError, ValueError):
                     continue
+                rows[idx] = {k: row.get(k, "") for k in _CSV_FIELDS}
     except OSError:
         return {}
-    return times
+    return rows
+
+
+def _write_png(path: str, frame_bgr, meta) -> bool:
+    """Lossless PNG. If Pillow + per-frame metadata are available, embed the
+    timestamps as namespaced PNG text chunks (annotation only).
+    Falls back to cv2.imwrite (plain PNG) otherwise."""
+    if _HAS_PIL and meta:
+        img = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+        info = PngInfo()
+        for k, v in meta.items():
+            info.add_text(f"goosegrabber.{k}", str(v))
+        try:
+            img.save(path, format="PNG", pnginfo=info)
+            return True
+        except Exception as exc:  # pragma: no cover
+            print(f"  [warn] metadata write failed ({exc}); writing plain PNG")
+    return cv2.imwrite(path, frame_bgr)
 
 
 def parse_args(argv=None):
@@ -76,7 +110,7 @@ def main(argv=None) -> int:
             if os.path.isfile(cand):
                 csv_path = cand
                 break
-    times = _read_csv_times(csv_path) if csv_path else {}
+    times = _read_csv_rows(csv_path) if csv_path else {}
 
     exported = []
     i = 0
@@ -87,7 +121,8 @@ def main(argv=None) -> int:
                 break
             if start <= i and (end is None or i <= end):
                 out = os.path.join(outdir, f"frame_{i:05d}.png")
-                if not cv2.imwrite(out, frame):
+                meta = times.get(i) if times else None
+                if not _write_png(out, frame, meta):
                     print(f"[error] failed to write {out}")
                     return 1
                 exported.append((i, out))
@@ -102,10 +137,11 @@ def main(argv=None) -> int:
         first, _ = exported[0]
         last, _ = exported[-1]
         if times:
-            t_first = times.get(first, "?")
-            t_last = times.get(last, "?")
+            t_first = (times.get(first) or {}).get("iso_utc", "?")
+            t_last = (times.get(last) or {}).get("iso_utc", "?")
             print(f"  frame {first}  UTC {t_first}")
             print(f"  frame {last}  UTC {t_last}")
+            print("  (timestamps also embedded in each PNG as goosegrabber.* metadata)")
         else:
             print("  (no timestamp CSV found next to the video;")
             print("   pass --csv to print UTC times for the exported frames)")
