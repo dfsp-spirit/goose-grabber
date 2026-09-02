@@ -1,0 +1,13 @@
+[project]
+name = "goose-grabber-prototype"
+version = "0.1.0"
+description = "Throwaway prototype: pick a camera by image, record H.264 video + per-frame timestamp CSV, and extract frames from the encoded video."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "opencv-python>=4.8",
+    "numpy>=1.24",
+]
+
+[tool.uv]
+package = false
