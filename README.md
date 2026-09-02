@@ -1,2 +1,5 @@
 # goose-grabber
-A small openCV frame grabber utillity with timestamps for the goose cam research project at MPIEA.
+
+A small OpenCV frame grabber utility with high-precision timestamps for the goose cam research project at MPIEA.
+
+---
