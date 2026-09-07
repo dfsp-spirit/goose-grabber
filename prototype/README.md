@@ -39,6 +39,39 @@ uv run python grabber.py --camera 0          # skip picker, use /dev/video0
 
 Keys: `m` = mark event · `q`/`ESC` = stop & quit.
 
+### uv vs pip (Windows / other machines)
+
+**This is not a pip-installable package — don't run `pip install -e .` here.**
+The top-level `.py` files are plain scripts that import each other as siblings
+from this folder, and `pyproject.toml` deliberately sets `[tool.uv] package =
+false`, i.e. uv treats it as a *virtual project*: install the dependencies, never
+package the project itself. Pip ignores that `[tool.uv]` section and falls back
+to setuptools, which auto-discovers the flat top-level layout and refuses to
+build with something like:
+
+```
+ERROR: Multiple top-level packages discovered in a flat-layout:
+['clock', 'devices', 'extract_frames', 'grabber', 'recorder'].
+```
+
+So on a machine without uv, **don't install the project — install only its
+dependencies**, then run the script from inside this folder (the `.venv`
+activation line differs per OS):
+
+```bash
+cd prototype
+python -m venv .venv
+source .venv/bin/activate                 # Linux/macOS
+# .venv\Scripts\activate                  # Windows cmd
+# .venv\Scripts\Activate.ps1             # Windows PowerShell
+pip install opencv-python numpy pillow
+python grabber.py
+```
+
+With uv it just works as documented above: `uv run python grabber.py` never
+tries to package the project (`package = false`), it only resolves and installs
+the dependencies.
+
 ### H.264 vs fallback
 
 H.264/MP4 is used when a system `ffmpeg` with `libx264` is available
